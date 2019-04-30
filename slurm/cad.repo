@@ -1,0 +1,4 @@
+[cad]
+baseurl = file:///slurm/cadrepo/centos/$releasever/$basearch/
+gpgcheck = 0
+name = CAD YUM repo
