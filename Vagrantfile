@@ -1,32 +1,41 @@
 
 $script = <<-SCRIPT
   set -x
-  if [[ ! -e /etc/.provisioned ]]; then
+  # Only need to do this once, so check for lock file
+  if [[ ! -e /etc/CLUSTER_VAGRANT_UP ]]; then
     echo "192.168.100.12    login" >> /etc/hosts
     echo "192.168.100.13    node01" >> /etc/hosts
     echo "192.168.100.14    node02" >> /etc/hosts
     # we only generate the key on one of the nodes
-    if [[ ! -e /vagrant/id_rsa ]]; then
-      ssh-keygen -t rsa -f /vagrant/id_rsa -N ""
+    if [[ ! -e /scratch/id_rsa ]]; then
+      ssh-keygen -t rsa -f /scratch/id_rsa -N ""
     fi
-    install -m 600 -o vagrant -g vagrant /vagrant/id_rsa /home/vagrant/.ssh/
+    install -m 600 -o vagrant -g vagrant /scratch/id_rsa /home/vagrant/.ssh/
     # the extra 'echo' is needed because Vagrant inserts its own key without a
     # newline at the end
-    (echo; cat /vagrant/id_rsa.pub) >> /home/vagrant/.ssh/authorized_keys
-    # add EPEL and CAD RPM repos and install slurm
+    (echo; cat /scratch/id_rsa.pub) >> /home/vagrant/.ssh/authorized_keys
+    # add EPEL
     yum -y install epel-release
+    # add our CAD repo
     [[ -e /slurm/cad.repo ]] && cp /slurm/cad.repo /etc/yum.repos.d/
-    yum -y install slurm
+    # install Slurm, Ansible & git
+    yum -y install slurm ansible git
     # we only generate the munge key once
-    if [[ ! -e /vagrant/munge.key ]]; then
+    if [[ ! -e /scratch/munge.key ]]; then
       /usr/sbin/create-munge-key
-      cp /etc/munge/munge.key /vagrant
+      cp /etc/munge/munge.key /scratch
     else
-      cp /vagrant/munge.key /etc/munge
+      cp /scratch/munge.key /etc/munge
     fi
     chown munge.munge /etc/munge/munge.key
     sudo systemctl restart munge
-    touch /etc/.provisioned
+    # clone our repositories
+    [[ ! -e /scratch/cluster_create ]] && \
+      git clone https://github.com/eResearchSandpit/cadclusterhigh-ansible.git /scratch/cluster_create
+    [[ ! -e /scratch/cluster_config ]] && \
+      git clone https://github.com/eResearchSandpit/cadClusterConfig.git /scratch/cluster_config
+    # create lock file
+    touch /etc/CLUSTER_VAGRANT_UP
   fi
 SCRIPT
 
@@ -39,6 +48,7 @@ Vagrant.configure("2") do |cluster|
       vb.cpus = 1
   end
   cluster.vm.synced_folder "slurm/", "/slurm"
+  cluster.vm.synced_folder "scratch/", "/scratch", type: "nfs", mount_options: ['rw', 'vers=3', 'tcp', 'fsc', 'actimeo=1'] # for macos
   cluster.vm.provision "shell", inline: $script
   #define nodes
   cluster.vm.define "login" do |login|
