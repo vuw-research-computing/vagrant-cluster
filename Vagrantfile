@@ -20,7 +20,7 @@ $script = <<-SCRIPT
     # add our CAD repo
     [[ -e /vagrant/slurm/cad.repo ]] && cp /vagrant/slurm/cad.repo /etc/yum.repos.d/
     # install required pkgs
-    yum -y install slurm ansible git vim htop
+    yum -y install slurm ansible git vim htop policycoreutils-python
     # we only generate the munge key once
     if [[ ! -e /vagrant/slurm/scratch/munge.key ]]; then
       /usr/sbin/create-munge-key
